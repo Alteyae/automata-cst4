@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Turing Machine Tracer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@500;600;700;800&family=Lato:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FFF3E4;
+  --card:#FFF9F1;
+  --ink:#1B1614;
+  --brown:#553F3A;
+  --muted:#85716A;
+  --line:#E4CDB6;
+  --hot:#E2661A;
+  --ok:#12A150;
+  --bad:#CF3B2C;
+  --display:"League Spartan","Arial Black",system-ui,sans-serif;
+  --body:Lato,"Segoe UI",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1F1916; --card:#28201C; --ink:#F4E9DE; --brown:#EAD7C8; --muted:#B19E92;
+    --line:#46382F; --hot:#FF8A3D; --ok:#3FD483; --bad:#FF6E5E;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1F1916; --card:#28201C; --ink:#F4E9DE; --brown:#EAD7C8; --muted:#B19E92;
+  --line:#46382F; --hot:#FF8A3D; --ok:#3FD483; --bad:#FF6E5E;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:16px;line-height:1.5}
+.wrap{max-width:1440px;margin:0 auto;padding-inline:clamp(16px,3vw,40px);padding-block:18px 40px}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--hot);outline-offset:2px}
+
+/* top bar */
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;margin-bottom:18px}
+.brand{font-family:var(--display);font-weight:700;font-size:20px;color:var(--brown);letter-spacing:-.01em;margin:0}
+.tabs{display:flex;flex-wrap:wrap;gap:6px}
+.tab{background:transparent;border:2px solid var(--ink);border-radius:999px;padding:5px 14px 4px;font-family:var(--display);font-weight:600;font-size:16px}
+.tab[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.tab:hover:not([aria-pressed="true"]){border-color:var(--hot);color:var(--hot)}
+
+/* grid */
+.stage{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:28px 40px;align-items:start}
+@media (max-width:960px){.stage{grid-template-columns:1fr}}
+.diagram{overflow-x:auto;position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
+@media (max-width:960px){.diagram{position:static}}
+.diagram svg{display:block;width:100%;min-width:520px;height:auto}
+
+/* SVG */
+svg text{font-family:var(--display)}
+.edge path{fill:none;stroke:var(--ink);stroke-width:2.2;transition:stroke .15s}
+.edge text{fill:var(--ink);font-size:22px;font-weight:700}
+.edge.hot path{stroke:var(--hot);stroke-width:3.2}
+.edge text.hot{fill:var(--hot)}
+.startarrow{stroke:var(--ink);stroke-width:2.2}
+.startarrow.hot{stroke:var(--hot);stroke-width:3.2}
+.node circle,.node ellipse{fill:var(--bg);stroke:var(--ink);stroke-width:2.2}
+.node text{fill:var(--ink);font-weight:800}
+.node.current circle,.node.current ellipse{stroke:var(--hot);stroke-width:3.6}
+.node.current text{fill:var(--hot)}
+.node.won ellipse,.node.won circle{stroke:var(--ok);stroke-width:3.6}
+.node.won text{fill:var(--ok)}
+.node.lost ellipse,.node.lost circle{stroke:var(--bad);stroke-width:3.6}
+.node.lost text{fill:var(--bad)}
+.caption{fill:var(--muted);font-family:var(--body)!important;font-size:15px;font-weight:400}
+#implicit{fill:none;stroke:var(--bad);stroke-width:2.6;stroke-dasharray:8 7}
+#implicitLbl{fill:var(--bad);font-size:20px;font-weight:700}
+
+/* right column */
+.side{display:flex;flex-direction:column;gap:18px}
+.lang{font-family:var(--display);font-weight:800;font-size:clamp(40px,5vw,64px);line-height:1;letter-spacing:-.02em;margin:0;text-wrap:balance}
+.lang.long{font-size:clamp(32px,3.6vw,46px)}
+.desc{margin:0;color:var(--brown);max-width:52ch}
+.inputrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.inputrow label{font-weight:700;font-size:14px;color:var(--brown)}
+#tapeInput{font-family:var(--display);font-size:22px;font-weight:600;letter-spacing:.12em;padding:6px 12px 3px;width:min(220px,100%);border:2.5px solid var(--ink);background:var(--card);color:var(--ink);border-radius:0}
+.btn{border:2.5px solid var(--ink);background:var(--card);padding:6px 14px 5px;font-weight:700;font-size:15px;border-radius:0;min-height:40px}
+.btn.primary{background:var(--ink);color:var(--bg)}
+.btn:hover:not(:disabled){border-color:var(--hot)}
+.btn.primary:hover:not(:disabled){background:var(--hot);border-color:var(--hot);color:#fff}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.samples{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:14px;color:var(--muted)}
+.samples button{border:1.5px dashed var(--muted);background:transparent;padding:2px 10px;font-family:var(--display);font-weight:600;font-size:15px;letter-spacing:.06em}
+.samples button:hover{border-style:solid;border-color:var(--hot);color:var(--hot)}
+.err{color:var(--bad);font-weight:700;font-size:14px;margin:0}
+
+/* tape */
+.tapewrap{position:relative;padding-top:48px;--cell:clamp(42px,4.4vw,58px)}
+.headarrow{position:absolute;top:0;width:20px;margin-left:-10px;height:44px;transition:left .22s ease}
+.headarrow line{stroke:var(--ink);stroke-width:2.6}
+.headarrow path{fill:var(--ink)}
+.cells{display:flex}
+.cell{width:var(--cell);height:var(--cell);flex:0 0 var(--cell);border:3px solid var(--ink);border-right-width:0;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-weight:700;font-size:calc(var(--cell)*.56);line-height:1;padding-top:4px;background:var(--card)}
+.cell:last-child{border-right-width:3px}
+.cell.blank{color:var(--muted);opacity:.35;font-weight:500}
+.cell.written{color:var(--hot)}
+.tapenote{font-size:13px;color:var(--muted);margin-top:6px}
+
+.controls{display:flex;flex-wrap:wrap;gap:8px}
+.status{display:inline-flex;align-items:center;gap:8px;font-family:var(--display);font-weight:700;font-size:15px;padding:4px 12px 2px;border:2px solid var(--ink);border-radius:999px;align-self:flex-start;font-variant-numeric:tabular-nums}
+.status.accept{border-color:var(--ok);color:var(--ok)}
+.status.reject{border-color:var(--bad);color:var(--bad)}
+.status.loop{border-color:var(--hot);color:var(--hot)}
+
+.statusrow{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center}
+.moves{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:14px;color:var(--brown);font-variant-numeric:tabular-nums}
+.mv b{font-family:var(--display);font-size:17px;color:var(--ink)}
+.mv.last{color:var(--hot);font-weight:700}
+.speedrow{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:700;color:var(--brown)}
+.speedrow input{accent-color:var(--hot);width:min(200px,50vw)}
+.narr{border-left:4px solid var(--hot);padding:2px 0 2px 14px;min-height:3.2em}
+.narr p{margin:0}
+.narr .now{font-weight:700;font-size:17px}
+.narr .next{color:var(--muted);font-size:15px;margin-top:4px}
+.narr code{font-family:var(--display);font-weight:700;font-size:1.05em}
+
+details{border-top:2px solid var(--line);padding-top:10px}
+summary{cursor:pointer;font-family:var(--display);font-weight:700;font-size:17px;color:var(--brown)}
+.tablescroll{overflow-x:auto;margin-top:10px}
+table{border-collapse:collapse;font-size:14.5px;width:100%}
+th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+th{font-weight:700;color:var(--brown)}
+td:first-child{font-family:var(--display);font-weight:700;white-space:nowrap}
+
+.trace{list-style:none;margin:10px 0 0;padding:0;max-height:220px;overflow-y:auto;font-family:var(--display);font-weight:600;font-size:17px;letter-spacing:.04em;font-variant-numeric:tabular-nums}
+.trace li{display:flex;gap:14px;padding:3px 6px;cursor:pointer;border-left:3px solid transparent}
+.trace li .n{color:var(--muted);min-width:2.2em;font-weight:500;letter-spacing:0}
+.trace li .q{color:var(--hot);font-weight:800;margin:0 2px}
+.trace li.cur{border-left-color:var(--hot);background:color-mix(in srgb,var(--hot) 10%,transparent)}
+.trace li.future{opacity:.4}
+.trace li:hover{background:color-mix(in srgb,var(--ink) 6%,transparent)}
+.hint{font-size:13px;color:var(--muted);margin:0}
+@media (prefers-reduced-motion: reduce){.headarrow,.edge path{transition:none}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="top">
+    <p class="brand">Turing machine tracer</p>
+    <div class="tabs" id="tabs" role="group" aria-label="Choose a machine"></div>
+  </div>
+
+  <div class="stage">
+    <div class="diagram" id="diagram" aria-label="State diagram"></div>
+
+    <div class="side">
+      <div>
+        <h1 class="lang" id="lang">L = 0ⁿ1ⁿ</h1>
+        <p class="desc" id="desc" style="margin-top:10px"></p>
+      </div>
+
+      <div>
+        <div class="inputrow">
+          <label for="tapeInput">Tape input</label>
+          <input id="tapeInput" type="text" spellcheck="false" autocomplete="off" inputmode="text">
+          <button class="btn" id="loadBtn">Load tape</button>
+        </div>
+        <p class="err" id="err" hidden></p>
+        <div class="samples" id="samples" style="margin-top:8px"></div>
+      </div>
+
+      <div class="tapewrap" id="tapewrap">
+        <svg class="headarrow" id="headarrow" viewBox="0 0 20 44" aria-hidden="true"><line x1="10" y1="0" x2="10" y2="34"/><path d="M3,30 L10,43 L17,30 Z"/></svg>
+        <div class="cells" id="cells"></div>
+      </div>
+
+      <div class="controls">
+        <button class="btn" id="backBtn" aria-label="Previous step">◀ Back</button>
+        <button class="btn primary" id="stepBtn">Step ▶</button>
+        <button class="btn" id="playBtn">Play</button>
+        <button class="btn" id="endBtn">Run to end</button>
+        <button class="btn" id="resetBtn">Reset</button>
+      </div>
+      <div class="speedrow">
+        <label for="speed">Play speed</label>
+        <input type="range" id="speed" min="0" max="100" value="45">
+        <span id="speedLbl" class="hint"></span>
+      </div>
+
+      <div class="statusrow"><span class="status" id="status">Ready</span><span class="moves" id="moves"></span></div>
+
+      <div class="narr" aria-live="polite">
+        <p class="now" id="now"></p>
+        <p class="next" id="next"></p>
+      </div>
+      <p class="hint">Keys: → step, ← back, R reset.</p>
+
+      <details open>
+        <summary>Trace of configurations</summary>
+        <ol class="trace" id="trace"></ol>
+      </details>
+
+      <details>
+        <summary>Formal definition</summary>
+        <div class="tablescroll"><table id="deftable"></table></div>
+      </details>
+    </div>
+  </div>
+</div>
+
+<script>
+const B = "_";
+const show = s => s === B ? "␣" : s;
+const DIR = { R: "move right", L: "move left" };
+
+const MACHINES = [
+  {
+    id: "anbn", tab: "0ⁿ1ⁿ", L: "L = 0ⁿ1ⁿ",
+    desc: "Accepts n zeros followed by the same number of ones. Each pass crosses off one 0 as x and one 1 as y, then returns to the left for the next pair.",
+    sigma: ["0","1"], gamma: "{0, 1, x, y, ␣}",
+    samples: ["0011","000111","01","0010","001"],
+    start: "A", accept: "ACCEPT", reject: "REJECT",
+    viewBox: "0 0 1000 540",
+    startFrom: [170, 190],
+    nodes: {
+      A: {x:300,y:190,r:42}, B: {x:560,y:190,r:42}, C: {x:820,y:190,r:42}, D: {x:300,y:370,r:42},
+      ACCEPT: {x:570,y:465,rx:96,ry:46,kind:"accept"},
+      REJECT: {x:860,y:440,rx:90,ry:44,kind:"reject",caption:"no matching rule"}
+    },
+    meanings: {
+      A: "Cross off the leftmost 0 as x",
+      B: "Run right to the first unmatched 1",
+      C: "Run back left to the last x",
+      D: "Only y's may remain — check them"
+    },
+    edges: [
+      {id:"AB", from:"A", to:"B", kind:"line", rules:[["0","x","R"]], label:[430,166,"middle"]},
+      {id:"BB", from:"B", to:"B", kind:"loop", side:"top", rules:[["0","0","R"],["y","y","R"]], label:[560,38,"middle"]},
+      {id:"BC", from:"B", to:"C", kind:"line", rules:[["1","y","L"]], label:[690,166,"middle"]},
+      {id:"CC", from:"C", to:"C", kind:"loop", side:"top", rules:[["0","0","L"],["y","y","L"]], label:[820,38,"middle"]},
+      {id:"CA", from:"C", to:"A", kind:"curve", ctrl:[560,340], rules:[["x","x","R"]], label:[650,296,"middle"]},
+      {id:"AD", from:"A", to:"D", kind:"line", rules:[["y","y","R"]], label:[284,288,"end"]},
+      {id:"DD", from:"D", to:"D", kind:"loop", side:"left", rules:[["y","y","R"]], label:[158,378,"end"]},
+      {id:"DAcc", from:"D", to:"ACCEPT", kind:"line", rules:[[B,B,"R"]], label:[398,470,"end"]},
+      {id:"AAcc", from:"A", to:"ACCEPT", kind:"line", rules:[[B,B,"R"]], label:[446,322,"start"]}
+    ]
+  },
+  {
+    id: "pal", tab: "Palindromes", L: "L = { w | w = wᴿ }",
+    desc: "Accepts strings over {a, b} that read the same backwards. It erases the first symbol, remembers it in its state, runs right to the end, checks the last symbol matches, then walks all the way back left. Watch the head sweep in both directions.",
+    sigma: ["a","b"], gamma: "{a, b, ␣}",
+    samples: ["abba","aba","ababa","abab","aab","a"],
+    start: "A", accept: "ACCEPT", reject: "REJECT",
+    viewBox: "0 0 1000 680",
+    startFrom: [24, 330],
+    nodes: {
+      A: {x:140,y:330,r:42}, B: {x:320,y:170,r:42}, C: {x:320,y:500,r:42},
+      D: {x:700,y:170,r:42}, E: {x:700,y:500,r:42}, F: {x:510,y:335,r:42},
+      ACCEPT: {x:140,y:610,rx:96,ry:44,kind:"accept"},
+      REJECT: {x:880,y:335,rx:90,ry:42,kind:"reject",caption:"last symbol didn't match"}
+    },
+    meanings: {
+      A: "Erase the leftmost symbol and remember it",
+      B: "Carrying an a — run right to the end",
+      C: "Carrying a b — run right to the end",
+      D: "Last symbol must be a (or nothing left)",
+      E: "Last symbol must be b (or nothing left)",
+      F: "Walk back left to the start"
+    },
+    edges: [
+      {id:"AB", from:"A", to:"B", kind:"line", rules:[["a",B,"R"]], label:[212,236,"end"]},
+      {id:"AC", from:"A", to:"C", kind:"line", rules:[["b",B,"R"]], label:[212,444,"end"]},
+      {id:"AAcc", from:"A", to:"ACCEPT", kind:"line", rules:[[B,B,"R"]], label:[154,500,"start"]},
+      {id:"BB", from:"B", to:"B", kind:"loop", side:"left", rules:[["a","a","R"],["b","b","R"]], label:[190,152,"end"]},
+      {id:"CC", from:"C", to:"C", kind:"loop", side:"bottom", rules:[["a","a","R"],["b","b","R"]], label:[320,642,"middle"]},
+      {id:"BD", from:"B", to:"D", kind:"line", rules:[[B,B,"L"]], label:[510,148,"middle"]},
+      {id:"CE", from:"C", to:"E", kind:"line", rules:[[B,B,"L"]], label:[510,480,"middle"]},
+      {id:"DF", from:"D", to:"F", kind:"line", rules:[["a",B,"L"],[B,B,"L"]], label:[632,272,"start"]},
+      {id:"EF", from:"E", to:"F", kind:"line", rules:[["b",B,"L"],[B,B,"L"]], label:[640,392,"start"]},
+      {id:"FF", from:"F", to:"F", kind:"loop", side:"top", rules:[["a","a","L"],["b","b","L"]], label:[468,238,"end"]},
+      {id:"FA", from:"F", to:"A", kind:"line", rules:[[B,B,"R"]], label:[330,318,"middle"]}
+    ]
+  },
+  {
+    id: "eq", tab: "Equal 0s and 1s", L: "L = { w | #0 = #1 }",
+    desc: "Accepts any string with as many 0s as 1s, in any order. It marks the next unmarked symbol with x, hunts right for a partner of the opposite kind, marks it too, then returns to the far left. Long left sweeps follow every right sweep.",
+    sigma: ["0","1"], gamma: "{0, 1, x, ␣}",
+    samples: ["0110","1001","0101","01","0010","011"],
+    start: "A", accept: "ACCEPT", reject: "REJECT",
+    viewBox: "0 0 1000 640",
+    startFrom: [30, 320],
+    nodes: {
+      A: {x:170,y:320,r:42}, B: {x:460,y:170,r:42}, C: {x:460,y:470,r:42}, D: {x:760,y:320,r:42},
+      ACCEPT: {x:170,y:530,rx:96,ry:44,kind:"accept"},
+      REJECT: {x:870,y:545,rx:90,ry:42,kind:"reject",caption:"no partner found"}
+    },
+    meanings: {
+      A: "Skip x's and mark the next unmarked symbol",
+      B: "Marked a 0 — look right for a 1",
+      C: "Marked a 1 — look right for a 0",
+      D: "Walk back left to the start"
+    },
+    edges: [
+      {id:"AA", from:"A", to:"A", kind:"loop", side:"top", rules:[["x","x","R"]], label:[170,200,"middle"]},
+      {id:"AB", from:"A", to:"B", kind:"line", rules:[["0","x","R"]], label:[300,228,"end"]},
+      {id:"AC", from:"A", to:"C", kind:"line", rules:[["1","x","R"]], label:[300,428,"end"]},
+      {id:"AAcc", from:"A", to:"ACCEPT", kind:"line", rules:[[B,B,"R"]], label:[156,440,"end"]},
+      {id:"BB", from:"B", to:"B", kind:"loop", side:"top", rules:[["0","0","R"],["x","x","R"]], label:[460,24,"middle"]},
+      {id:"CC", from:"C", to:"C", kind:"loop", side:"bottom", rules:[["1","1","R"],["x","x","R"]], label:[460,604,"middle"]},
+      {id:"BD", from:"B", to:"D", kind:"line", rules:[["1","x","L"]], label:[636,226,"start"]},
+      {id:"CD", from:"C", to:"D", kind:"line", rules:[["0","x","L"]], label:[636,440,"start"]},
+      {id:"DD", from:"D", to:"D", kind:"loop", side:"right", rules:[["0","0","L"],["1","1","L"],["x","x","L"]], label:[880,296,"start"]},
+      {id:"DA", from:"D", to:"A", kind:"line", rules:[[B,B,"R"]], label:[460,308,"middle"]}
+    ]
+  },
+  {
+    id: "inc", tab: "Binary +1", L: "n → n + 1",
+    desc: "Adds one to a binary number. It runs right to the end of the number, turns around, and carries leftward: each 1 becomes 0 until a 0 (or the blank past the front) takes the 1.",
+    sigma: ["0","1"], gamma: "{0, 1, ␣}",
+    samples: ["1011","111","10011","0"],
+    start: "A", accept: "HALT", reject: null,
+    viewBox: "0 0 780 330",
+    startFrom: [40, 220],
+    nodes: {
+      A: {x:170,y:220,r:44}, B: {x:420,y:220,r:44},
+      HALT: {x:666,y:220,rx:96,ry:46,kind:"accept"}
+    },
+    meanings: { A: "Run right to the end of the number", B: "Carry: turn 1s into 0s, moving left" },
+    edges: [
+      {id:"AA", from:"A", to:"A", kind:"loop", side:"top", rules:[["0","0","R"],["1","1","R"]], label:[170,50,"middle"]},
+      {id:"AB", from:"A", to:"B", kind:"line", rules:[[B,B,"L"]], label:[295,198,"middle"]},
+      {id:"BB", from:"B", to:"B", kind:"loop", side:"top", rules:[["1","0","L"]], label:[420,92,"middle"]},
+      {id:"BH", from:"B", to:"HALT", kind:"line", rules:[["0","1","L"],[B,"1","L"]], label:[518,172,"middle"]}
+    ]
+  },
+  {
+    id: "add", tab: "ADD (w₁#w₂)", L: "f(w₁#w₂) = w₁ + w₂",
+    desc: "Adds two binary numbers using w₁ + w₂ = (w₁ + 1) + (w₂ − 1). Each round it subtracts 1 from w₂ at the far right, walks left across the #, adds 1 to w₁, then walks back. When w₂ is all zeros it erases w₂ and the #, leaving the sum on the tape. Use Run to end for long inputs.",
+    sigma: ["0","1","#"], gamma: "{0, 1, #, ␣}", numeric: true, limit: 20000,
+    samples: ["11#10","0110#11100","101#1","1#1","0#0"],
+    start: "A", accept: "HALT", reject: "REJECT",
+    viewBox: "0 0 1060 680",
+    startFrom: [20, 170],
+    nodes: {
+      A: {x:120,y:170,r:42}, B: {x:340,y:170,r:42}, C: {x:580,y:170,r:42}, D: {x:820,y:170,r:42},
+      G: {x:340,y:470,r:42}, F: {x:580,y:470,r:42}, E: {x:820,y:470,r:42}, Z: {x:120,y:470,r:42},
+      HALT: {x:120,y:620,rx:90,ry:42,kind:"accept"},
+      REJECT: {x:960,y:620,rx:86,ry:38,kind:"reject",caption:""}
+    },
+    meanings: {
+      A: "Move right past w₁ to the #",
+      B: "Check whether w₂ still has a 1",
+      C: "w₂ is not zero — run to its right end",
+      D: "Subtract 1 from w₂ (borrow leftward)",
+      E: "Walk left back to the #",
+      F: "Add 1 to w₁ (carry leftward)",
+      G: "Walk right back to the #",
+      Z: "w₂ is zero — erase it and the #"
+    },
+    edges: [
+      {id:"AA", from:"A", to:"A", kind:"loop", side:"top", rules:[["0","0","R"],["1","1","R"]], label:[120,30,"middle"]},
+      {id:"AB", from:"A", to:"B", kind:"line", rules:[["#","#","R"]], label:[230,150,"middle"]},
+      {id:"BB", from:"B", to:"B", kind:"loop", side:"top", rules:[["0","0","R"]], label:[340,54,"middle"]},
+      {id:"BC", from:"B", to:"C", kind:"line", rules:[["1","1","R"]], label:[460,150,"middle"]},
+      {id:"CC", from:"C", to:"C", kind:"loop", side:"top", rules:[["0","0","R"],["1","1","R"]], label:[580,30,"middle"]},
+      {id:"CD", from:"C", to:"D", kind:"line", rules:[[B,B,"L"]], label:[700,150,"middle"]},
+      {id:"DD", from:"D", to:"D", kind:"loop", side:"right", rules:[["0","1","L"]], label:[942,178,"start"]},
+      {id:"DE", from:"D", to:"E", kind:"line", rules:[["1","0","L"]], label:[834,326,"start"]},
+      {id:"EE", from:"E", to:"E", kind:"loop", side:"right", rules:[["0","0","L"],["1","1","L"]], label:[942,462,"start"]},
+      {id:"EF", from:"E", to:"F", kind:"line", rules:[["#","#","L"]], label:[700,450,"middle"]},
+      {id:"FF", from:"F", to:"F", kind:"loop", side:"bottom", rules:[["1","0","L"]], label:[580,612,"middle"]},
+      {id:"FG", from:"F", to:"G", kind:"line", rules:[["0","1","R"],[B,"1","R"]], label:[460,424,"middle"]},
+      {id:"GG", from:"G", to:"G", kind:"loop", side:"bottom", rules:[["0","0","R"],["1","1","R"]], label:[340,612,"middle"]},
+      {id:"GB", from:"G", to:"B", kind:"line", rules:[["#","#","R"]], label:[354,326,"start"]},
+      {id:"BZ", from:"B", to:"Z", kind:"line", rules:[[B,B,"L"]], label:[222,292,"end"]},
+      {id:"ZZ", from:"Z", to:"Z", kind:"loop", side:"right", rules:[["0",B,"L"]], label:[218,552,"middle"]},
+      {id:"ZH", from:"Z", to:"HALT", kind:"line", rules:[["#",B,"L"]], label:[106,556,"end"]}
+    ]
+  },
+  {
+    id: "01s0", tab: "01*0 (your slides)", L: "L = 01*0",
+    desc: "The machine from your slides: a 0, any number of 1s, then a final 0. Every symbol is marked as it's read — 0 becomes x, 1 becomes y.",
+    sigma: ["0","1"], gamma: "{0, 1, x, y, ␣}",
+    samples: ["0110","00","010","0111","10"],
+    start: "A", accept: "ACCEPT", reject: "REJECT",
+    viewBox: "0 0 720 480",
+    startFrom: [40, 190],
+    nodes: {
+      A: {x:170,y:190,r:40}, B: {x:370,y:190,r:40}, C: {x:570,y:190,r:40},
+      REJECT: {x:190,y:392,rx:96,ry:46,kind:"reject"},
+      ACCEPT: {x:540,y:410,rx:96,ry:46,kind:"accept"}
+    },
+    meanings: { A: "Expect the first 0", B: "Mark 1s until the closing 0", C: "The tape must end here" },
+    edges: [
+      {id:"AB", from:"A", to:"B", kind:"line", rules:[["0","x","R"]], label:[270,166,"middle"]},
+      {id:"BB", from:"B", to:"B", kind:"loop", side:"top", rules:[["1","y","R"]], label:[370,62,"middle"]},
+      {id:"BC", from:"B", to:"C", kind:"line", rules:[["0","x","R"]], label:[470,166,"middle"]},
+      {id:"AR", from:"A", to:"REJECT", kind:"line", rules:[["1","1","R"],[B,B,"R"]], label:[152,268,"end"]},
+      {id:"BR", from:"B", to:"REJECT", kind:"line", rules:[[B,B,"R"]], label:[304,262,"end"]},
+      {id:"CR", from:"C", to:"REJECT", kind:"line", rules:[["0","0","R"],["1","1","R"]], label:[420,334,"middle"]},
+      {id:"CAcc", from:"C", to:"ACCEPT", kind:"line", rules:[[B,B,"R"]], label:[578,306,"start"]}
+    ]
+  },
+  {
+    id: "comp", tab: "1's complement", L: "Flip every bit",
+    desc: "A machine that computes rather than decides: it walks right, turning each 0 into 1 and each 1 into 0, and halts at the first blank. The answer is left on the tape.",
+    sigma: ["0","1"], gamma: "{0, 1, ␣}",
+    samples: ["1011","0000","110100"],
+    start: "A", accept: "HALT", reject: null,
+    viewBox: "0 0 720 330",
+    startFrom: [60, 210],
+    nodes: {
+      A: {x:200,y:210,r:44},
+      HALT: {x:530,y:210,rx:96,ry:46,kind:"accept"}
+    },
+    meanings: { A: "Flip the current bit and move on" },
+    edges: [
+      {id:"AA", from:"A", to:"A", kind:"loop", side:"top", rules:[["0","1","R"],["1","0","R"]], label:[200,40,"middle"]},
+      {id:"AH", from:"A", to:"HALT", kind:"line", rules:[[B,B,"L"]], label:[340,186,"middle"]}
+    ]
+  }
+];
+
+/* ---------- geometry ---------- */
+function boundary(n, tx, ty){
+  const dx = tx - n.x, dy = ty - n.y;
+  const rx = n.r || n.rx, ry = n.r || n.ry;
+  const t = 1 / Math.sqrt((dx*dx)/(rx*rx) + (dy*dy)/(ry*ry));
+  return [n.x + dx*t, n.y + dy*t];
+}
+const f = v => v.toFixed(1);
+function edgePath(m, e){
+  const a = m.nodes[e.from], b = m.nodes[e.to];
+  if (e.kind === "line"){
+    const p = boundary(a, b.x, b.y), q = boundary(b, a.x, a.y);
+    return `M${f(p[0])},${f(p[1])} L${f(q[0])},${f(q[1])}`;
+  }
+  if (e.kind === "curve"){
+    const [cx, cy] = e.ctrl;
+    const p = boundary(a, cx, cy), q = boundary(b, cx, cy);
+    return `M${f(p[0])},${f(p[1])} Q${cx},${cy} ${f(q[0])},${f(q[1])}`;
+  }
+  // loop
+  const base = {top:-90, left:180, bottom:90, right:0}[e.side] * Math.PI/180;
+  const s = 30*Math.PI/180, c = 40*Math.PI/180, r = a.r, R = r + 84;
+  const pt = (ang, rad) => [a.x + Math.cos(ang)*rad, a.y + Math.sin(ang)*rad];
+  const p1 = pt(base - s, r), p2 = pt(base + s, r + 1);
+  const c1 = pt(base - c, R), c2 = pt(base + c, R);
+  return `M${f(p1[0])},${f(p1[1])} C${f(c1[0])},${f(c1[1])} ${f(c2[0])},${f(c2[1])} ${f(p2[0])},${f(p2[1])}`;
+}
+
+function prepare(m){
+  m.delta = {};
+  m.edges.forEach(e => e.rules.forEach((r, i) => {
+    (m.delta[e.from] ||= {})[r[0]] = { to:e.to, write:r[1], move:r[2], edge:e.id, line:i };
+  }));
+}
+MACHINES.forEach(prepare);
+
+/* ---------- drawing ---------- */
+const diagram = document.getElementById("diagram");
+function drawDiagram(m){
+  let s = `<svg viewBox="${m.viewBox}" role="img" aria-label="State diagram for ${m.L}">
+  <defs>
+    <marker id="ah-ink" viewBox="0 0 10 10" refX="9.5" refY="5" markerWidth="11" markerHeight="11" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink)"/></marker>
+    <marker id="ah-hot" viewBox="0 0 10 10" refX="9.5" refY="5" markerWidth="13" markerHeight="13" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--hot)"/></marker>
+    <marker id="ah-bad" viewBox="0 0 10 10" refX="9.5" refY="5" markerWidth="13" markerHeight="13" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--bad)"/></marker>
+  </defs>`;
+  const st = m.nodes[m.start], sp = boundary(st, m.startFrom[0], m.startFrom[1]);
+  s += `<line class="startarrow" id="startArrow" x1="${m.startFrom[0]}" y1="${m.startFrom[1]}" x2="${f(sp[0])}" y2="${f(sp[1])}" marker-end="url(#ah-ink)"/>`;
+  m.edges.forEach(e => {
+    s += `<g class="edge" data-id="${e.id}"><path d="${edgePath(m, e)}" marker-end="url(#ah-ink)"/>`;
+    const [lx, ly, anchor] = e.label;
+    e.rules.forEach((r, i) => {
+      s += `<text x="${lx}" y="${ly + i*26}" text-anchor="${anchor}" data-line="${i}">${show(r[0])} → ${show(r[1])}, ${r[2]}</text>`;
+    });
+    s += `</g>`;
+  });
+  s += `<path id="implicit" d="" marker-end="url(#ah-bad)" style="display:none"/><text id="implicitLbl" text-anchor="middle" style="display:none"></text>`;
+  for (const [name, n] of Object.entries(m.nodes)){
+    s += `<g class="node" data-id="${name}">`;
+    if (n.r) s += `<circle cx="${n.x}" cy="${n.y}" r="${n.r}"/><text x="${n.x}" y="${n.y + 15}" text-anchor="middle" font-size="44">${name}</text>`;
+    else s += `<ellipse cx="${n.x}" cy="${n.y}" rx="${n.rx}" ry="${n.ry}"/><text x="${n.x}" y="${n.y + 11}" text-anchor="middle" font-size="31">${name}</text>`;
+    if (n.caption) s += `<text class="caption" x="${n.x}" y="${n.y + n.ry + 24}" text-anchor="middle">${n.caption}</text>`;
+    s += `</g>`;
+  }
+  s += `</svg>`;
+  diagram.innerHTML = s;
+}
+
+/* ---------- run state ---------- */
+let M = MACHINES[0], hist = [], cur = 0, timer = null, inputStr = "";
+const lim = () => M.limit || 1000;
+const read = (t, i) => t.has(i) ? t.get(i) : B;
+
+function load(str){
+  inputStr = str;
+  const tape = new Map();
+  [...str].forEach((c, i) => tape.set(i, c));
+  hist = [{ tape, head:0, state:M.start, status:"ready", fired:null, n:0, wrote:null, nl:0, nr:0 }];
+  cur = 0;
+  pause();
+  render();
+}
+
+function nextOf(s){
+  if (["accept","reject","loop"].includes(s.status)) return null;
+  if (s.n >= lim()) return { ...s, status:"loop", fired:null };
+  const sym = read(s.tape, s.head);
+  const rule = (M.delta[s.state] || {})[sym];
+  if (!rule) return { ...s, status:"reject", n:s.n+1, fired:{ implicit:true, from:s.state, sym }, wrote:null };
+  const tape = new Map(s.tape);
+  tape.set(s.head, rule.write);
+  const head = s.head + (rule.move === "R" ? 1 : -1);
+  const status = rule.to === M.accept ? "accept" : (rule.to === M.reject ? "reject" : "running");
+  return { tape, head, state:rule.to, status, n:s.n+1, wrote:s.head, fired:{ from:s.state, sym, rule }, nl:s.nl + (rule.move === "L"), nr:s.nr + (rule.move === "R") };
+}
+
+function stepFwd(){
+  if (cur < hist.length - 1){ cur++; render(); return true; }
+  const nx = nextOf(hist[cur]);
+  if (!nx) return false;
+  hist.push(nx); cur++; render();
+  return true;
+}
+function stepBack(){ if (cur > 0){ cur--; render(); } }
+function play(){
+  if (timer){ pause(); return; }
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  playBtn.textContent = "Pause";
+  timer = setInterval(() => { if (!stepFwd() || done(hist[cur])) pause(); }, delay());
+}
+function delay(){ const v = +$("speed").value; return Math.round(900 * Math.pow(0.955, v)); }
+function runToEnd(){
+  pause();
+  cur = hist.length - 1;
+  while (!done(hist[cur])){ const nx = nextOf(hist[cur]); if (!nx) break; hist.push(nx); cur++; }
+  render();
+}
+function pause(){ if (timer){ clearInterval(timer); timer = null; } playBtn.textContent = "Play"; }
+const done = s => ["accept","reject","loop"].includes(s.status);
+
+/* ---------- rendering ---------- */
+const $ = id => document.getElementById(id);
+const playBtn = $("playBtn");
+
+function render(){
+  const s = hist[cur];
+  const svg = diagram.querySelector("svg");
+  // reset
+  svg.querySelectorAll(".edge").forEach(g => { g.classList.remove("hot"); g.querySelector("path").setAttribute("marker-end","url(#ah-ink)"); g.querySelectorAll("text").forEach(t => t.classList.remove("hot")); });
+  svg.querySelectorAll(".node").forEach(g => g.classList.remove("current","won","lost"));
+  const sa = $("startArrow"); sa.classList.remove("hot"); sa.setAttribute("marker-end","url(#ah-ink)");
+  const imp = $("implicit"), impL = $("implicitLbl");
+  imp.style.display = "none"; impL.style.display = "none";
+
+  const node = name => svg.querySelector(`.node[data-id="${CSS.escape(name)}"]`);
+  if (cur === 0){ sa.classList.add("hot"); sa.setAttribute("marker-end","url(#ah-hot)"); }
+  if (s.fired && !s.fired.implicit){
+    const g = svg.querySelector(`.edge[data-id="${s.fired.rule.edge}"]`);
+    g.classList.add("hot");
+    g.querySelector("path").setAttribute("marker-end","url(#ah-hot)");
+    g.querySelector(`text[data-line="${s.fired.rule.line}"]`).classList.add("hot");
+  }
+  if (s.status === "accept") node(s.state).classList.add("won");
+  else if (s.status === "reject"){
+    if (s.fired && s.fired.implicit){
+      node(s.fired.from).classList.add("current");
+      if (M.reject && M.nodes[M.reject]){
+        const a = M.nodes[s.fired.from], b = M.nodes[M.reject];
+        const p = boundary(a, b.x, b.y), q = boundary(b, a.x, a.y);
+        imp.setAttribute("d", `M${f(p[0])},${f(p[1])} L${f(q[0])},${f(q[1])}`);
+        imp.style.display = "";
+        impL.textContent = `${show(s.fired.sym)} → ?`;
+        impL.setAttribute("x", f((p[0]+q[0])/2 + 14)); impL.setAttribute("y", f((p[1]+q[1])/2 - 10));
+        impL.style.display = "";
+        node(M.reject).classList.add("lost");
+      }
+    } else node(s.state).classList.add("lost");
+  } else node(s.state).classList.add("current");
+
+  renderTape(s);
+  renderText(s);
+  renderTrace();
+
+  $("backBtn").disabled = cur === 0;
+  $("stepBtn").disabled = done(s) && cur === hist.length - 1;
+  playBtn.disabled = $("stepBtn").disabled;
+  $("endBtn").disabled = done(s);
+}
+
+function renderTape(s){
+  const wrap = $("tapewrap"), cells = $("cells");
+  const probe = document.createElement("div"); probe.className = "cell"; cells.appendChild(probe);
+  const cw = probe.getBoundingClientRect().width || 52; probe.remove();
+  const N = Math.max(5, Math.min(14, Math.floor(wrap.clientWidth / cw)));
+  const used = [...s.tape.keys()].filter(k => s.tape.get(k) !== B);
+  const lo = Math.min(0, ...used);
+  let vs = Math.max(lo, s.head - (N - 2));
+  if (s.head < vs) vs = s.head - 1;
+  let h = "";
+  for (let i = vs; i < vs + N; i++){
+    const c = read(s.tape, i);
+    const cls = ["cell"]; if (c === B) cls.push("blank"); if (i === s.wrote && c !== B) cls.push("written");
+    h += `<div class="${cls.join(" ")}">${show(c)}</div>`;
+  }
+  cells.innerHTML = h;
+  $("headarrow").style.left = ((s.head - vs) * cw + cw/2) + "px";
+}
+
+function fmtRule(from, sym, r){ return `δ(${from}, ${show(sym)}) = (${r.to}, ${show(r.write)}, ${r.move})`; }
+function describe(from, sym, r){
+  const w = r.write === sym ? `leave ${show(sym)} as it is` : `write ${show(r.write)}`;
+  const go = r.to === from ? `stay in ${from}` : `go to ${r.to}`;
+  return `In ${from} reading ${show(sym)}: ${w}, ${DIR[r.move]}, ${go}.`;
+}
+function renderText(s){
+  const now = $("now"), next = $("next"), st = $("status");
+  const q = `“${inputStr || "ε"}”`;
+  if (cur === 0) now.textContent = `Start in ${M.start} with the head on the first cell.`;
+  else if (s.status === "loop") now.textContent = `Stopped after ${lim()} steps. The machine may never halt on this input.`;
+  else if (s.fired.implicit) now.textContent = `In ${s.fired.from} reading ${show(s.fired.sym)} there is no transition, so the machine halts and rejects ${q}.`;
+  else {
+    let t = `Step ${s.n}. ` + describe(s.fired.from, s.fired.sym, s.fired.rule);
+    if (s.status === "accept") t += M.reject ? ` The machine halts and accepts ${q}.` : ` The machine halts; the tape holds the result.`;
+    if (s.status === "reject") t += ` The machine halts and rejects ${q}.`;
+    now.textContent = t;
+  }
+  if (done(s)) next.textContent = cur < hist.length ? "Press Reset or load a new tape to run again." : "";
+  else {
+    const sym = read(s.tape, s.head), r = (M.delta[s.state] || {})[sym];
+    next.textContent = r ? `Next: ${fmtRule(s.state, sym, r)}` : `Next: no rule for (${s.state}, ${show(sym)}) — the machine will reject.`;
+  }
+  st.className = "status";
+  if (s.status === "accept"){ st.classList.add("accept"); st.textContent = M.reject ? `Accepted in ${s.n} steps` : `Halted in ${s.n} steps · output ${tapeOut(s)}${tapeDec(s)}`; }
+  else if (s.status === "reject"){ st.classList.add("reject"); st.textContent = `Rejected at step ${s.n}`; }
+  else if (s.status === "loop"){ st.classList.add("loop"); st.textContent = `Still running after ${lim()} steps`; }
+  else st.textContent = cur === 0 ? "Ready · step 0" : `Running · step ${s.n}`;
+  $("moves").innerHTML = `<span class="mv"><b>←</b> ${s.nl} left</span><span class="mv"><b>→</b> ${s.nr} right</span>` + (s.fired && !s.fired.implicit ? `<span class="mv last">last move: ${s.fired.rule.move === "L" ? "← left" : "→ right"}</span>` : "");
+}
+function tapeDec(s){ const o = tapeOut(s); return M.numeric && /^[01]+$/.test(o) ? ` (= ${parseInt(o,2)})` : ""; }
+function tapeOut(s){
+  const ks = [...s.tape.keys()].sort((a,b)=>a-b); let o = "";
+  ks.forEach(k => { const c = s.tape.get(k); if (c !== B) o += c; });
+  return o || "ε";
+}
+function config(s){
+  const ks = [...s.tape.keys()].filter(k => s.tape.get(k) !== B);
+  const lo = Math.min(s.head, ...(ks.length ? ks : [s.head]));
+  const hi = Math.max(s.head, ...(ks.length ? ks : [s.head]));
+  let L = "", R = "";
+  for (let i = lo; i < s.head; i++) L += show(read(s.tape, i));
+  for (let i = s.head; i <= hi; i++) R += show(read(s.tape, i));
+  return [L, R];
+}
+function renderTrace(){
+  const ol = $("trace");
+  let h = "";
+  hist.forEach((s, i) => {
+    let body;
+    if (s.fired && s.fired.implicit) body = `<span class="q">${M.reject || "halt"}</span>`;
+    else {
+      const [L, R] = config(s);
+      body = `${L}<span class="q">${s.state}</span>${R}`;
+    }
+    h += `<li data-i="${i}" class="${i === cur ? "cur" : i > cur ? "future" : ""}"><span class="n">${i === 0 ? "" : "⊢"}${i}</span><span>${body}</span></li>`;
+  });
+  ol.innerHTML = h;
+  const c = ol.querySelector(".cur");
+  if (c) ol.scrollTop = c.offsetTop - ol.offsetTop - ol.clientHeight/2 + c.offsetHeight/2;
+}
+
+function renderDef(m){
+  const states = Object.keys(m.nodes);
+  const rows = [
+    ["Q", `{${states.join(", ")}}`, "States"],
+    ["Σ", `{${m.sigma.join(", ")}}`, "Input symbols"],
+    ["Γ", m.gamma, "Tape symbols"],
+    ["δ", `${m.edges.reduce((n,e)=>n+e.rules.length,0)} transition rules (the diagram)`, "Machine instructions"],
+    ["q₀", m.start, "Start state"],
+    ["q_accept", m.accept, m.reject ? "Accept state" : "Halting state"],
+    ["q_reject", m.reject || "—", m.reject ? "Reject state (also any missing rule)" : "Not needed: every symbol has a rule"]
+  ];
+  let h = "<tr><th>Component</th><th>Value</th><th>Meaning</th></tr>";
+  rows.forEach(r => h += `<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`);
+  Object.entries(m.meanings).forEach(([k,v]) => h += `<tr><td>${k}</td><td colspan="2">${v}</td></tr>`);
+  $("deftable").innerHTML = h;
+}
+
+/* ---------- machine selection & input ---------- */
+const tabs = $("tabs");
+MACHINES.forEach(m => {
+  const b = document.createElement("button");
+  b.className = "tab"; b.textContent = m.tab; b.dataset.id = m.id;
+  b.addEventListener("click", () => pick(m));
+  tabs.appendChild(b);
+});
+function pick(m){
+  M = m;
+  [...tabs.children].forEach(b => b.setAttribute("aria-pressed", b.dataset.id === m.id ? "true" : "false"));
+  $("lang").textContent = m.L;
+  $("lang").classList.toggle("long", m.L.length > 14);
+  $("desc").textContent = m.desc;
+  const sm = $("samples"); sm.innerHTML = "<span>Try</span>";
+  m.samples.forEach(x => {
+    const b = document.createElement("button"); b.textContent = x;
+    b.addEventListener("click", () => { $("tapeInput").value = x; tryLoad(); });
+    sm.appendChild(b);
+  });
+  drawDiagram(m);
+  renderDef(m);
+  $("tapeInput").value = m.samples[0];
+  $("err").hidden = true;
+  load(m.samples[0]);
+}
+function tryLoad(){
+  const v = $("tapeInput").value.replace(/\s+/g, "");
+  const bad = [...v].find(c => !M.sigma.includes(c));
+  const err = $("err");
+  if (bad !== undefined){
+    err.textContent = `“${bad}” isn't in Σ = {${M.sigma.join(", ")}}. Use only ${M.sigma.join(" and ")}.`;
+    err.hidden = false; return;
+  }
+  err.hidden = true;
+  load(v);
+}
+
+$("loadBtn").addEventListener("click", tryLoad);
+$("tapeInput").addEventListener("keydown", e => { if (e.key === "Enter"){ e.preventDefault(); tryLoad(); } });
+$("stepBtn").addEventListener("click", () => { pause(); stepFwd(); });
+$("backBtn").addEventListener("click", () => { pause(); stepBack(); });
+$("resetBtn").addEventListener("click", () => { pause(); cur = 0; render(); });
+playBtn.addEventListener("click", play);
+$("endBtn").addEventListener("click", runToEnd);
+const speedLbl = () => { $("speedLbl").textContent = `${(1000/delay()).toFixed(1)} steps/s`; };
+$("speed").addEventListener("input", () => { speedLbl(); if (timer){ clearInterval(timer); timer = null; play(); } });
+speedLbl();
+$("trace").addEventListener("click", e => { const li = e.target.closest("li"); if (li){ pause(); cur = +li.dataset.i; render(); } });
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT") return;
+  if (e.key === "ArrowRight"){ e.preventDefault(); pause(); stepFwd(); }
+  else if (e.key === "ArrowLeft"){ e.preventDefault(); pause(); stepBack(); }
+  else if (e.key === "r" || e.key === "R"){ pause(); cur = 0; render(); }
+});
+window.addEventListener("resize", () => renderTape(hist[cur]));
+document.fonts && document.fonts.ready.then(() => renderTape(hist[cur]));
+
+pick(MACHINES[0]);
+</script>
+
+</body>
+</html>
